@@ -1,4 +1,4 @@
-CFLAGS = -flat_namespace 
+CFLAGS = -flat_namespace -Wall
 
 default: test run
 
