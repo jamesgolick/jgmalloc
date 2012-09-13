@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "unistd.h"
 #include "assert.h"
-
+#include "string.h"
 
 #define DEBUG 1
 
@@ -23,11 +23,14 @@ int totalBytesAllocated = 0;
 struct malloc_chunk *freeListStart;
 
 void* malloc(size_t block_size) {
+  fprintf(stderr, "enter malloc\n");
+
   if (freeListStart != NULL) {
     struct malloc_chunk *last = freeListStart;
 
     do {
       if (last->size <= block_size) {
+
 #ifdef DEBUG
 	print_malloc_stats();
 #endif
@@ -48,9 +51,10 @@ void* malloc(size_t block_size) {
 	last->next = NULL;
 	last->prev = NULL;
 
+	fprintf(stderr, "reissuing pointer %p / chunk %p\n", last + 1, last);
 	return last + 1;
       }
-    } while(last->next != NULL);
+    } while((last=last->next) != NULL);
   }
 
   allocations++;
@@ -69,12 +73,16 @@ void* malloc(size_t block_size) {
 #ifdef DEBUG
   print_malloc_stats();
 #endif
+  fprintf(stderr, "issuing pointer %p chunk %p\n", ptr + 1, ptr);
 
   return ptr + 1;
 }
 
 void free(void* ptr) {
+  if (ptr == NULL) return;
+
   struct malloc_chunk *chunk = ((struct malloc_chunk *)ptr) - 1;
+  fprintf(stderr, "enter free with %p chunk %p\n", ptr, chunk);
 
   if (freeListStart == NULL) {
     freeListStart = chunk;
@@ -99,3 +107,23 @@ void print_malloc_stats() {
   fprintf(stderr, "[malloc_stats] allocations: %d bytes allocated: %d frees: %d\n",
 	  allocations, totalBytesAllocated, frees);
 }
+
+void *realloc(void *ptr, size_t size) {
+  fprintf(stderr, "entering realloc.\n");
+  void *newPtr = malloc(size);
+
+  if (ptr != NULL) {
+    memcpy(newPtr, ptr, sizeof(ptr));
+    free(ptr);
+  }
+
+  return newPtr;
+}
+
+void *calloc(size_t count, size_t size) {
+  fprintf(stderr, "entering calloc.\n");
+  void *ptr = malloc(count * size);
+  //memset(ptr, 0, count * size);
+  return ptr;
+}
+
