@@ -26,35 +26,32 @@ void* malloc(size_t block_size) {
   fprintf(stderr, "enter malloc\n");
 
   if (freeListStart != NULL) {
-    struct malloc_chunk *last = freeListStart;
+    struct malloc_chunk *chunk = freeListStart;
 
     do {
-      if (last->size <= block_size) {
+      if (chunk->size >= block_size) {
 
 #ifdef DEBUG
 	print_malloc_stats();
 #endif
 
-	if (last->prev)
-	  last->prev->next = last->next;
+	if (chunk->prev != NULL)
+	  chunk->prev->next = chunk->next;
 
-	if (last->next)
-	  last->next->prev = last->prev;
+	if (chunk->next != NULL)
+	  chunk->next->prev = chunk->prev;
 
-	if (freeListStart == last) {
-	  if (last->next)
-	    freeListStart = last->next;
-	  else
-	    freeListStart = NULL;
-	}
+	if (chunk == freeListStart)
+	  freeListStart = chunk->next;
 
-	last->next = NULL;
-	last->prev = NULL;
+	chunk->prev = NULL;
+	chunk->next = NULL;
 
-	fprintf(stderr, "reissuing pointer %p / chunk %p\n", last + 1, last);
-	return last + 1;
+	fprintf(stderr, "reissuing %p chunk %p\n", chunk + 1, chunk);
+
+	return chunk + 1;
       }
-    } while((last=last->next) != NULL);
+    } while((chunk = chunk->next) != NULL);
   }
 
   allocations++;
@@ -117,13 +114,16 @@ void *realloc(void *ptr, size_t size) {
     free(ptr);
   }
 
+  fprintf(stderr, "realloc returning pointer %p\n", newPtr);
+
   return newPtr;
 }
 
 void *calloc(size_t count, size_t size) {
   fprintf(stderr, "entering calloc.\n");
   void *ptr = malloc(count * size);
-  //memset(ptr, 0, count * size);
+  memset(ptr, 0, count * size);
+  fprintf(stderr, "calloc returning pointer %p\n", ptr);
   return ptr;
 }
 
