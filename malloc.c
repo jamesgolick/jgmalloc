@@ -2,12 +2,14 @@
 #include "unistd.h"
 #include "assert.h"
 #include "string.h"
+#include "pthread.h"
 
 #define DEBUG 1
 
 struct malloc_chunk;
 struct malloc_chunk {
   size_t size;
+  int magic;
   struct malloc_chunk *next;
   struct malloc_chunk *prev;
 };
@@ -20,11 +22,14 @@ int allocations = 0;
 int frees = 0;
 int totalBytesAllocated = 0;
 
+pthread_mutex_t heapLock = PTHREAD_MUTEX_INITIALIZER;
+
 struct malloc_chunk *freeListStart;
 
 void* malloc(size_t block_size) {
   fprintf(stderr, "enter malloc\n");
 
+  pthread_mutex_lock(&heapLock);
   if (freeListStart != NULL) {
     struct malloc_chunk *chunk = freeListStart;
 
@@ -49,10 +54,12 @@ void* malloc(size_t block_size) {
 
 	fprintf(stderr, "reissuing %p chunk %p\n", chunk + 1, chunk);
 
+	pthread_mutex_unlock(&heapLock);
 	return chunk + 1;
       }
     } while((chunk = chunk->next) != NULL);
   }
+  pthread_mutex_unlock(&heapLock);
 
   allocations++;
 
@@ -65,6 +72,8 @@ void* malloc(size_t block_size) {
   totalBytesAllocated += size;
 
   struct malloc_chunk *ptr = sbrk(size);
+  if (ptr == -1) return NULL;
+  ptr->magic = 8;
   ptr->size = block_size;
 
 #ifdef DEBUG
@@ -78,6 +87,7 @@ void* malloc(size_t block_size) {
 void free(void* ptr) {
   if (ptr == NULL) return;
 
+  pthread_mutex_lock(&heapLock);
   struct malloc_chunk *chunk = ((struct malloc_chunk *)ptr) - 1;
   fprintf(stderr, "enter free with %p chunk %p\n", ptr, chunk);
 
@@ -97,6 +107,7 @@ void free(void* ptr) {
     frees++;
   }
 
+  pthread_mutex_unlock(&heapLock);
   print_malloc_stats();
 }
 
@@ -126,4 +137,3 @@ void *calloc(size_t count, size_t size) {
   fprintf(stderr, "calloc returning pointer %p\n", ptr);
   return ptr;
 }
-
