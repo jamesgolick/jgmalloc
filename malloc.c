@@ -38,6 +38,7 @@ void* heapStart;
 void* heapEnd;
 
 void* jgmalloc(size_t block_size);
+void* after_chunk(mchunkptr chunk);
 
 void* malloc(size_t size) {
   void *ptr = jgmalloc(size);
@@ -68,7 +69,7 @@ void* jgmalloc(size_t block_size) {
 	  //fprintf(stderr, "splitting %p of size %u removing %u bytes resulting pointer %p of size %u\n", cur, cur->size, alignedSize, split, cur->size - alignedSize);
 	  //
 	  split->size = cur->size - totalSize;
-	  assert((((void*)split) + split->size + OVERHEAD) <= heapEnd);
+	  assert(after_chunk(split) <= heapEnd);
 	  cur->size = alignedSize;
 
 	  if (cur == freeListHead) {
@@ -166,4 +167,8 @@ size_t aligned_size(size_t size) {
     return size + (ALIGN_TO - (size % ALIGN_TO));
   else
     return size;
+}
+
+void* after_chunk(mchunkptr chunk) {
+  return ((void*)chunk) + chunk->size + OVERHEAD;
 }
