@@ -67,6 +67,7 @@ void* jgmalloc(size_t block_size) {
 	  //fprintf(stderr, "splitting %p of size %u removing %u bytes resulting pointer %p of size %u\n", cur, cur->size, alignedSize, split, cur->size - alignedSize);
 	  //
 	  split->size = cur->size - totalSize;
+	  assert((((void*)split) + split->size + sizeof(struct malloc_chunk)) <= heapEnd);
 	  cur->size = alignedSize;
 
 	  if (cur == freeListHead) {
@@ -154,7 +155,7 @@ void allocate(size_t size) {
   if (!heapStart) heapStart = ptr;
   heapEnd = ((void*)ptr) + ALLOCATE;
 
-  ptr->size = ALLOCATE;
+  ptr->size = ALLOCATE - sizeof(struct malloc_chunk);
   freeListHead = ptr;
   freeListTail = ptr;
 }
