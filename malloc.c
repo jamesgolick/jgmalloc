@@ -33,6 +33,9 @@ int totalBytesAllocated = 0;
 mchunkptr freeListHead;
 mchunkptr freeListTail;
 
+void* heapStart;
+void* heapEnd;
+
 void* jgmalloc(size_t block_size);
 
 void* malloc(size_t size) {
@@ -147,6 +150,10 @@ void *calloc(size_t count, size_t size) {
 
 void allocate(size_t size) {
   mchunkptr ptr = mmap(NULL, ALLOCATE, PROT_WRITE | PROT_READ, MAP_ANON | MAP_SHARED, -1, 0);
+
+  if (!heapStart) heapStart = ptr;
+  heapEnd = ((void*)ptr) + ALLOCATE;
+
   ptr->size = ALLOCATE;
   freeListHead = ptr;
   freeListTail = ptr;
