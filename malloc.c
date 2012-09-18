@@ -17,10 +17,10 @@ struct malloc_chunk {
   struct malloc_chunk *prev;
 };
 
-#define ALLOCATE 16777216
+#define ALLOCATE 409600
 #define ALIGN_TO 16
-#define OVERHEAD (size_t) sizeof(struct malloc_chunk)
-#define MIN_CHUNK_SIZE (size_t) sizeof(struct malloc_chunk) + ALIGN_TO
+#define OVERHEAD (size_t) (sizeof(struct malloc_chunk) + sizeof(size_t))
+#define MIN_CHUNK_SIZE (size_t) OVERHEAD + ALIGN_TO
 
 void print_malloc_stats();
 mchunkptr free_list_head();
@@ -60,16 +60,18 @@ void* jgmalloc(size_t block_size) {
       if (cur->size > block_size) {
 	size_t alignedSize = aligned_size(block_size);
 	size_t totalSize = alignedSize + OVERHEAD;
+	size_t remainingSize = cur->size - totalSize;
 
 	// split this block if there's enough space left to actually allocate
 	// for anything else.
-	if ((cur->size - alignedSize) > MIN_CHUNK_SIZE) {
+	if (remainingSize > MIN_CHUNK_SIZE && remainingSize < cur->size) {
 	  mchunkptr split = ((void*)cur) + totalSize;
 
 	  //fprintf(stderr, "splitting %p of size %u removing %u bytes resulting pointer %p of size %u\n", cur, cur->size, alignedSize, split, cur->size - alignedSize);
 	  //
 	  split->size = cur->size - totalSize;
 	  assert(after_chunk(split) <= heapEnd);
+	  assert((void*) split - (void*) cur == totalSize);
 	  cur->size = alignedSize;
 
 	  if (cur == freeListHead) {
