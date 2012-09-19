@@ -6,30 +6,13 @@
 #include "assert.h"
 #include "string.h"
 #include "pthread.h"
+#include "jgmalloc.h"
 
 #define DEBUG 1
-
-struct malloc_chunk;
-typedef struct malloc_chunk* mchunkptr;
-struct malloc_chunk {
-  size_t size;
-  bool free;
-  struct malloc_chunk *next;
-  struct malloc_chunk *prev;
-};
-
 #define ALLOCATE 409600
 #define ALIGN_TO 16
 #define OVERHEAD (size_t) (sizeof(struct malloc_chunk) + sizeof(size_t))
 #define MIN_CHUNK_SIZE (size_t) OVERHEAD + ALIGN_TO
-
-void print_malloc_stats();
-mchunkptr free_list_head();
-void allocate();
-size_t aligned_size(size_t size);
-
-void set_size(mchunkptr chunk, size_t size);
-void assert_sane_chunk(mchunkptr chunk);
 
 int allocations = 0;
 int frees = 0;
@@ -48,7 +31,7 @@ void* malloc(size_t size) {
   void *ptr = jgmalloc(size);
   mchunkptr chunk = ((mchunkptr)ptr) - 1;
   assert(chunk->size >= size);
-  fprintf(stderr, "[malloc] issuing %p chunk @ %p size %u to satisfy %u\n", ptr, chunk, chunk->size, size);
+  //fprintf(stderr, "[malloc] issuing %p chunk @ %p size %u to satisfy %u\n", ptr, chunk, chunk->size, size);
   return ptr;
 }
 
@@ -114,9 +97,7 @@ void* jgmalloc(size_t block_size) {
 
 void free(void* ptr) {
   if (ptr == NULL) return;
-
-  fprintf(stderr, "[free] freeing @ %p\n", ptr);
-  assert(ptr > heapStart && ptr < heapEnd);
+  if (ptr < heapStart || ptr > heapEnd) return;
 
   mchunkptr chunk = ((mchunkptr) ptr) - 1;
   assert_sane_chunk(chunk);
@@ -132,38 +113,48 @@ void free(void* ptr) {
 }
 
 void print_malloc_stats() {
-  fprintf(stderr, "[malloc_stats] allocations: %d bytes allocated: %d frees: %d\n",
-	  allocations, totalBytesAllocated, frees);
+  ///fprintf(stderr, "[malloc_stats] allocations: %d bytes allocated: %d frees: %d\n",
+	  //allocations, totalBytesAllocated, frees);
 }
 
 void *realloc(void *ptr, size_t size) {
   void *newPtr = malloc(size);
 
   if (ptr != NULL) {
+    //fprintf(stderr, "[realloc] attempting to realloc %p of size %u to %u\n", ptr, ((mchunkptr)ptr - 1)->size, size);
+
     if (newPtr != NULL)
       memcpy(newPtr, ptr, sizeof(ptr));
     free(ptr);
   }
 
-  fprintf(stderr, "[realloc] issuing pointer %p\n", newPtr);
+  //fprintf(stderr, "[realloc] issuing pointer %p\n", newPtr);
 
   return newPtr;
 }
 
 void *calloc(size_t count, size_t size) {
-  fprintf(stderr, "entering calloc.\n");
+  //fprintf(stderr, "entering calloc.\n");
   void *ptr = malloc(count * size);
   if (ptr != NULL)
     memset(ptr, 0, count * size);
-  fprintf(stderr, "calloc returning pointer %p\n", ptr);
+  //fprintf(stderr, "calloc returning pointer %p\n", ptr);
   return ptr;
+}
+
+/*void *valloc(size_t size) {*/
+/*  fprintf(stderr, "VALLOC\n");*/
+/*}*/
+
+void *reallocf(void *ptr, size_t size) {
+  //fprintf(stderr, "VALLOC\n");
 }
 
 void allocate(size_t size) {
   mchunkptr ptr = mmap(NULL, ALLOCATE, PROT_WRITE | PROT_READ, MAP_ANON | MAP_SHARED, -1, 0);
 
-  if (!heapStart) heapStart = ptr;
-  heapEnd = ((void*)ptr) + ALLOCATE;
+  if ((void*)ptr < heapStart) heapStart = ptr;
+  if (((void*)ptr + ALLOCATE) > heapEnd) heapEnd = ((void*)ptr) + ALLOCATE;
 
   set_size(ptr, ALLOCATE - OVERHEAD);
   assert_sane_chunk(ptr);
