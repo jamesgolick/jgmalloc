@@ -115,8 +115,10 @@ void* jgmalloc(size_t block_size) {
 void free(void* ptr) {
   if (ptr == NULL) return;
 
+  assert(ptr > heapStart && ptr < heapEnd);
   fprintf(stderr, "[free] freeing @ %p\n", ptr);
   mchunkptr chunk = ((mchunkptr) ptr) - 1;
+  assert_sane_chunk(chunk);
 
   if (freeListHead) {
     freeListTail->prev = chunk;
