@@ -31,6 +31,7 @@ void* malloc(size_t size) {
   void *ptr = jgmalloc(size);
   mchunkptr chunk = ((mchunkptr)ptr) - 1;
   assert(chunk->size >= size);
+  assert(!chunk->free);
   //fprintf(stderr, "[malloc] issuing %p chunk @ %p size %u to satisfy %u\n", ptr, chunk, chunk->size, size);
   return ptr;
 }
@@ -44,6 +45,7 @@ void* jgmalloc(size_t block_size) {
 
     do {
       if (cur->size > block_size) {
+	cur->free = false;
 	size_t alignedSize = aligned_size(block_size);
 	size_t totalSize = alignedSize + OVERHEAD;
 	size_t remainingSize = cur->size - totalSize;
@@ -101,6 +103,7 @@ void free(void* ptr) {
 
   mchunkptr chunk = ((mchunkptr) ptr) - 1;
   assert_sane_chunk(chunk);
+  chunk->free = true;
 
   if (freeListHead) {
     freeListTail->prev = chunk;
