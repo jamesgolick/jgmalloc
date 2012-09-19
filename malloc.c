@@ -27,6 +27,9 @@ mchunkptr free_list_head();
 void allocate();
 size_t aligned_size(size_t size);
 
+void set_size(mchunkptr chunk, size_t size);
+void assert_sane_chunk(mchunkptr chunk);
+
 int allocations = 0;
 int frees = 0;
 int totalBytesAllocated = 0;
@@ -158,7 +161,9 @@ void allocate(size_t size) {
   if (!heapStart) heapStart = ptr;
   heapEnd = ((void*)ptr) + ALLOCATE;
 
-  ptr->size = ALLOCATE - OVERHEAD;
+  set_size(ptr, ALLOCATE - OVERHEAD);
+  assert_sane_chunk(ptr);
+
   freeListHead = ptr;
   freeListTail = ptr;
 }
@@ -170,6 +175,20 @@ size_t aligned_size(size_t size) {
     return size;
 }
 
-void* after_chunk(mchunkptr chunk) {
+void *after_chunk(mchunkptr chunk) {
   return ((void*)chunk) + chunk->size + OVERHEAD;
+}
+
+size_t *size_region(mchunkptr chunk) {
+  return (void *)chunk + chunk->size + sizeof(struct malloc_chunk);
+}
+
+void set_size(mchunkptr chunk, size_t size) {
+  chunk->size = ALLOCATE - OVERHEAD;
+  size_t *sizeRegion = size_region(chunk);
+  *sizeRegion = chunk->size;
+}
+
+void assert_sane_chunk(mchunkptr chunk) {
+  assert(chunk->size == *size_region(chunk));
 }
