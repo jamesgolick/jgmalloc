@@ -69,12 +69,12 @@ void* jgmalloc(size_t block_size) {
 	if (remainingSize > MIN_CHUNK_SIZE && remainingSize < cur->size) {
 	  mchunkptr split = ((void*)cur) + totalSize;
 
-	  //fprintf(stderr, "splitting %p of size %u removing %u bytes resulting pointer %p of size %u\n", cur, cur->size, alignedSize, split, cur->size - alignedSize);
-	  //
-	  split->size = cur->size - totalSize;
+	  set_size(split, cur->size - totalSize - OVERHEAD);
+	  assert_sane_chunk(split);
 	  assert(after_chunk(split) <= heapEnd);
 	  assert((void*) split - (void*) cur == totalSize);
-	  cur->size = alignedSize;
+	  set_size(cur, alignedSize);
+	  assert_sane_chunk(cur);
 
 	  if (cur == freeListHead) {
 	    freeListHead = split;
@@ -180,11 +180,13 @@ void *after_chunk(mchunkptr chunk) {
 }
 
 size_t *size_region(mchunkptr chunk) {
-  return (void *)chunk + chunk->size + sizeof(struct malloc_chunk);
+  size_t *region = (void *)chunk + chunk->size + sizeof(struct malloc_chunk);
+  assert((void*)region <= heapEnd - sizeof(size_t));
+  return region;
 }
 
 void set_size(mchunkptr chunk, size_t size) {
-  chunk->size = ALLOCATE - OVERHEAD;
+  chunk->size = size;
   size_t *sizeRegion = size_region(chunk);
   *sizeRegion = chunk->size;
 }
