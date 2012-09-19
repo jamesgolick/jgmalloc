@@ -106,9 +106,41 @@ void free(void* ptr) {
   chunk->free = true;
 
   if (freeListHead) {
-    freeListTail->prev = chunk;
-    chunk->next = freeListTail;
-    freeListTail = chunk;
+    mchunkptr left  = chunk_left(chunk);
+    mchunkptr right = chunk_right(chunk);
+    bool append = true;
+
+    if (left && left->free) {
+      append = false;
+      chunk->prev = left;
+
+      if (left->next) {
+	chunk->next = left->next;
+	left->next->prev = chunk;
+      }
+
+      if (left == freeListTail)
+	freeListTail = chunk;
+    }
+
+    if (right && right->free) {
+      append = false;
+      chunk->next = right;
+
+      if (right->prev) {
+	chunk->prev = right->prev;
+	right->prev->next = chunk;
+      }
+
+      if (right == freeListHead)
+	freeListHead = chunk;
+    }
+
+    if (append) {
+      freeListTail->prev = chunk;
+      chunk->next = freeListTail;
+      freeListTail = chunk;
+    }
   } else {
     freeListHead = chunk;
     freeListTail = chunk;
@@ -191,4 +223,22 @@ void set_size(mchunkptr chunk, size_t size) {
 
 void assert_sane_chunk(mchunkptr chunk) {
   assert(chunk->size == *size_region(chunk));
+}
+
+mchunkptr chunk_left(mchunkptr chunk) {
+  if ((void*)chunk == heapStart) {
+    return NULL;
+  } else {
+    size_t *leftSize = (void*)chunk - sizeof(size_t);
+    return (void*)chunk - *leftSize - OVERHEAD;
+  }
+}
+
+mchunkptr chunk_right(mchunkptr chunk) {
+  void *right = (void*)chunk + chunk->size + OVERHEAD;
+  if (right >= heapEnd) {
+    return NULL;
+  } else {
+    return right;
+  }
 }

@@ -15,3 +15,6 @@ size_t aligned_size(size_t size);
 
 void set_size(mchunkptr chunk, size_t size);
 void assert_sane_chunk(mchunkptr chunk);
+
+mchunkptr chunk_left(mchunkptr);
+mchunkptr chunk_right(mchunkptr);
