@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sys/mman.h>
+#include <stdbool.h>
 #include "errno.h"
 #include "unistd.h"
 #include "assert.h"
@@ -12,7 +13,7 @@ struct malloc_chunk;
 typedef struct malloc_chunk* mchunkptr;
 struct malloc_chunk {
   size_t size;
-  int magic;
+  bool free;
   struct malloc_chunk *next;
   struct malloc_chunk *prev;
 };
