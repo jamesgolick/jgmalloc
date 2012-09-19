@@ -44,7 +44,6 @@ void* malloc(size_t size) {
   void *ptr = jgmalloc(size);
   mchunkptr chunk = ((mchunkptr)ptr) - 1;
   assert(chunk->size >= size);
-  assert(chunk->size % 16 == 0);
   fprintf(stderr, "[malloc] issuing %p chunk @ %p size %u to satisfy %u\n", ptr, chunk, chunk->size, size);
   return ptr;
 }
