@@ -4,7 +4,7 @@ default: test run
 
 libjgmalloc.dylib: CFLAGS+=-fPIC -dynamiclib -flat_namespace
 
-libjgmalloc.dylib: malloc.c
+libjgmalloc.dylib: jgmalloc.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 test : test.c libjgmalloc.dylib
