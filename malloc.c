@@ -25,6 +25,8 @@ mchunkptr jgmalloc(size_t);
 size_t mchunk_total_space(size_t);
 bool mchunk_should_split(mchunkptr, size_t);
 mchunkptr mchunk_split(mchunkptr, size_t);
+mchunkptr mchunk_chunk_right(mchunkptr);
+void mchunk_set_size(mchunkptr, size_t);
 
 bool
 free_list_is_empty() {
@@ -86,6 +88,7 @@ jgmalloc(size_t size) {
 
       if (mchunk_should_split(cur, size)) {
 	mchunkptr nxt = mchunk_split(cur, size);
+	assert(mchunk_chunk_right(cur) == nxt);
 	free_list_append(nxt);
 
 	return cur;
@@ -100,7 +103,8 @@ jgmalloc(size_t size) {
 }
 
 void free(void* ptr) {
-  free_list_append((mchunkptr)ptr-1);
+  mchunkptr chunk = (mchunkptr)ptr-1;
+  free_list_append(chunk);
 }
 
 
@@ -133,7 +137,7 @@ void allocate() {
   mchunkptr ptr = mmap(NULL, ALLOCATE, PROT_WRITE | PROT_READ, MAP_ANON | MAP_SHARED, -1, 0);
   memset(ptr, 0, sizeof(struct malloc_chunk));
 
-  ptr->size = ALLOCATE;
+  mchunk_set_size(ptr, ALLOCATE - OVERHEAD);
 
   free_list_append(ptr);
 }
@@ -163,7 +167,7 @@ mchunk_footer(mchunkptr chunk) {
 }
 
 void 
-mchunk_set_footer(mchunkptr chunk, size_t size) {
+mchunk_set_size(mchunkptr chunk, size_t size) {
   chunk->size = size;
   size_t *sizeRegion = mchunk_footer(chunk);
   *sizeRegion = chunk->size;
@@ -180,9 +184,13 @@ mchunkptr
 mchunk_split(mchunkptr ptr, size_t size) {
   size_t remaining_size = ptr->size - mchunk_total_space(size);
   assert(remaining_size < ptr->size);
-  mchunkptr split = (void *)ptr + mchunk_total_space(size);
-  split->size = ptr->size - mchunk_aligned_size(size) - OVERHEAD;
-  ptr->size = ptr->size - split->size;
+
+  mchunkptr split = (void*)ptr + OVERHEAD + mchunk_aligned_size(size);
+
+  mchunk_set_size(split, ptr->size - mchunk_aligned_size(size) - OVERHEAD);
+  mchunk_set_size(ptr, mchunk_aligned_size(size));
+
+  assert(ptr->size >= size);
 
   return split;
 }
@@ -190,4 +198,9 @@ mchunk_split(mchunkptr ptr, size_t size) {
 void 
 assert_sane_chunk(mchunkptr chunk) {
   assert(chunk->size == *mchunk_footer(chunk));
+}
+
+mchunkptr
+mchunk_chunk_right(mchunkptr ptr) {
+  return (void*)ptr + OVERHEAD + ptr->size;
 }
