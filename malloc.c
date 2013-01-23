@@ -23,6 +23,7 @@ mchunkptr freeListTail = NULL;
 
 mchunkptr jgmalloc(size_t);
 size_t mchunk_total_space(size_t);
+size_t mchunk_aligned_size(size_t);
 bool mchunk_should_split(mchunkptr, size_t);
 mchunkptr mchunk_split(mchunkptr, size_t);
 mchunkptr mchunk_chunk_right(mchunkptr);
@@ -64,6 +65,7 @@ void free_list_append(mchunkptr ptr) {
   ptr->free = true;
 
   if (freeListHead == NULL) {
+    assert(freeListTail == NULL);
     freeListHead = ptr;
   } else {
     freeListTail->next = ptr;
@@ -83,7 +85,7 @@ jgmalloc(size_t size) {
 
   mchunkptr cur = freeListHead;
   do {
-    if (cur->size >= mchunk_total_space(size)) {
+    if (cur->size >= mchunk_aligned_size(size)) {
       free_list_remove(cur);
 
       if (mchunk_should_split(cur, size)) {
@@ -186,6 +188,7 @@ mchunk_split(mchunkptr ptr, size_t size) {
   assert(remaining_size < ptr->size);
 
   mchunkptr split = (void*)ptr + OVERHEAD + mchunk_aligned_size(size);
+  memset(split, 0, sizeof(struct malloc_chunk));
 
   mchunk_set_size(split, ptr->size - mchunk_aligned_size(size) - OVERHEAD);
   mchunk_set_size(ptr, mchunk_aligned_size(size));
