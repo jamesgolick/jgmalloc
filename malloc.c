@@ -14,6 +14,14 @@
 #define OVERHEAD (size_t) (sizeof(struct malloc_chunk) + sizeof(size_t))
 #define MIN_CHUNK_SIZE (size_t) OVERHEAD + ALIGN_TO
 
+struct heap {
+  void *start;
+  void *end;
+  struct heap *next;
+  struct heap *prev;
+};
+typedef struct heap * heapptr;
+
 int allocations = 0;
 int frees = 0;
 int totalBytesAllocated = 0;
@@ -21,8 +29,8 @@ int totalBytesAllocated = 0;
 mchunkptr freeListHead;
 mchunkptr freeListTail;
 
-void* heapStart;
-void* heapEnd;
+heapptr heapListHead;
+heapptr heapListTail;
 
 void* jgmalloc(size_t block_size);
 void* after_chunk(mchunkptr chunk);
@@ -57,7 +65,7 @@ void* jgmalloc(size_t block_size) {
 
 	  set_size(split, cur->size - totalSize - OVERHEAD);
 	  assert_sane_chunk(split);
-	  assert(after_chunk(split) <= heapEnd);
+	  assert(!beyond_right_edge_of_heap(split));
 	  assert((void*) split - (void*) cur == totalSize);
 	  set_size(cur, alignedSize);
 	  assert_sane_chunk(cur);
@@ -99,7 +107,7 @@ void* jgmalloc(size_t block_size) {
 
 void free(void* ptr) {
   if (ptr == NULL) return;
-  if (ptr < heapStart || ptr > heapEnd) return;
+  if (!is_in_heap(ptr)) return;
 
   mchunkptr chunk = ((mchunkptr) ptr) - 1;
   assert_sane_chunk(chunk);
@@ -185,13 +193,46 @@ void *reallocf(void *ptr, size_t size) {
   //fprintf(stderr, "VALLOC\n");
 }
 
+heapptr make_heap(void *allocation) {
+  heapptr heap = (heapptr)allocation;
+  //memset(heap, 0, sizeof(struct heap));
+  mchunkptr chunk = allocation + sizeof(struct heap);
+  chunk->size = ALLOCATE - OVERHEAD - sizeof(struct heap);
+  heap->start = (void*)chunk;
+  heap->end = (void*)chunk + chunk->size;
+
+  return heap;
+}
+
 void allocate(size_t size) {
   mchunkptr ptr = mmap(NULL, ALLOCATE, PROT_WRITE | PROT_READ, MAP_ANON | MAP_SHARED, -1, 0);
+  ptr->size = ALLOCATE - OVERHEAD;
 
-  if ((void*)ptr < heapStart) heapStart = ptr;
-  if (((void*)ptr + ALLOCATE) > heapEnd) heapEnd = ((void*)ptr) + ALLOCATE;
+  if (heapListHead) {
+    heapptr cur = heapListHead;
+    bool appended = false;
 
-  set_size(ptr, ALLOCATE - OVERHEAD);
+    do {
+      if (cur->end == (void*)ptr - 1) {
+	cur->end = (void*)ptr + ALLOCATE;
+	appended = true;
+      }
+    } while((cur = heapListHead->next) != NULL);
+
+    if (!appended) {
+      heapptr heap = make_heap(ptr);
+      ptr = heap->start + 1;
+      heapListTail->next = heap;
+      heap->prev = heapListTail;
+      heapListTail = heap;
+    }
+  } else {
+    heapListHead = make_heap(ptr);
+    heapListTail = heapListHead;
+    ptr = heapListHead->start + 1;
+  }
+
+  set_size(ptr, ptr->size);
   assert_sane_chunk(ptr);
 
   freeListHead = ptr;
@@ -211,7 +252,7 @@ void *after_chunk(mchunkptr chunk) {
 
 size_t *size_region(mchunkptr chunk) {
   size_t *region = (void *)chunk + chunk->size + sizeof(struct malloc_chunk);
-  assert((void*)region <= heapEnd - sizeof(size_t));
+  assert(has_space_right(region, sizeof(size_t)));
   return region;
 }
 
@@ -226,7 +267,7 @@ void assert_sane_chunk(mchunkptr chunk) {
 }
 
 mchunkptr chunk_left(mchunkptr chunk) {
-  if ((void*)chunk == heapStart) {
+  if (is_left_edge_of_heap(chunk)) {
     return NULL;
   } else {
     size_t *leftSize = (void*)chunk - sizeof(size_t);
@@ -236,9 +277,34 @@ mchunkptr chunk_left(mchunkptr chunk) {
 
 mchunkptr chunk_right(mchunkptr chunk) {
   void *right = (void*)chunk + chunk->size + OVERHEAD;
-  if (right >= heapEnd) {
+  if (beyond_right_edge_of_heap(right)) {
     return NULL;
   } else {
     return right;
   }
+}
+
+void record_new_heap_bounds(void *start, void *end) {
+}
+
+bool beyond_right_edge_of_heap(void *ptr) {
+  heapptr cur = heapListHead;
+  do {
+    if (ptr > cur->start && ptr < cur->end)
+      return false;
+  } while((cur = cur->next) != NULL);
+
+  return true;
+}
+
+bool is_in_heap(void *ptr) {
+  return true;
+}
+
+bool has_space_right(void* ptr, size_t space) {
+  return true;
+}
+
+bool is_left_edge_of_heap(mchunkptr chunk) {
+  return false;
 }
