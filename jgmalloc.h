@@ -16,12 +16,3 @@ size_t aligned_size(size_t size);
 
 void set_size(mchunkptr chunk, size_t size);
 void assert_sane_chunk(mchunkptr chunk);
-
-mchunkptr chunk_left(mchunkptr);
-mchunkptr chunk_right(mchunkptr);
-
-bool beyond_right_edge_of_heap(void*);
-bool is_in_heap(void*);
-void record_new_heap_bounds(void*, void*);
-bool has_space_right(void*, size_t);
-bool is_left_edge_of_heap(mchunkptr);
