@@ -21,21 +21,82 @@ int totalBytesAllocated = 0;
 mchunkptr freeListHead = NULL;
 mchunkptr freeListTail = NULL;
 
-void* jgmalloc(size_t block_size);
+mchunkptr jgmalloc(size_t);
+size_t mchunk_total_space(size_t);
+bool mchunk_should_split(mchunkptr, size_t);
+mchunkptr mchunk_split(mchunkptr, size_t);
+
+bool
+free_list_is_empty() {
+  return freeListHead == NULL;
+}
 
 void* malloc(size_t size) {
-  void *ptr = jgmalloc(size);
-  mchunkptr chunk = ((mchunkptr)ptr) - 1;
+  mchunkptr chunk = jgmalloc(size);
+
   assert(chunk->size >= size);
   assert(!chunk->free);
 
-  return ptr;
+  return chunk + 1;
 }
 
-void *jgmalloc(size_t size) {
+void
+free_list_remove(mchunkptr ptr) {
+  if (ptr->prev)
+    ptr->prev->next = ptr->next;
+
+  if (ptr->next)
+    ptr->next->prev = ptr->prev;
+
+  if (ptr == freeListHead)
+    freeListHead = ptr->next;
+
+  if (ptr == freeListTail)
+    freeListTail = ptr->prev;
+
+  ptr->prev = ptr->next = NULL;
+  ptr->free = false;
+}
+
+void free_list_append(mchunkptr ptr) {
+  ptr->free = true;
+
+  if (freeListHead == NULL) {
+    freeListHead = ptr;
+  } else {
+    freeListTail->next = ptr;
+    ptr->prev = freeListTail;
+  }
+
+  freeListTail = ptr;
+}
+
+mchunkptr
+jgmalloc(size_t size) {
   if (free_list_is_empty()) {
     allocate();
+    // if we still don't have any memory we're fucked.
+    if (free_list_is_empty()) { return NULL; }
   }
+
+  mchunkptr cur = freeListHead;
+  do {
+    if (cur->size >= mchunk_total_space(size)) {
+      free_list_remove(cur);
+
+      if (mchunk_should_split(cur, size)) {
+	mchunkptr nxt = mchunk_split(cur, size);
+	free_list_append(nxt);
+
+	return cur;
+      } else {
+	return cur;
+      }
+    }
+  } while((cur = cur->next) != NULL);
+
+  allocate();
+  return jgmalloc(size);
 }
 
 void free(void* ptr) {
@@ -64,26 +125,29 @@ void *calloc(size_t count, size_t size) {
 }
 
 void *reallocf(void *ptr, size_t size) {
-  //fprintf(stderr, "VALLOC\n");
+  return NULL;
 }
 
-void allocate(size_t size) {
+void allocate() {
   mchunkptr ptr = mmap(NULL, ALLOCATE, PROT_WRITE | PROT_READ, MAP_ANON | MAP_SHARED, -1, 0);
+  memset(ptr, 0, sizeof(struct malloc_chunk));
 
-  if (freeListHead == NULL) {
-    freeListHead = ptr;
-  } else {
-    freeListTail->next = ptr;
-  }
+  ptr->size = ALLOCATE;
 
-  freeListTail = ptr;
+  free_list_append(ptr);
 }
 
-size_t aligned_size(size_t size) {
+size_t
+mchunk_aligned_size(size_t size) {
   if (size % ALIGN_TO > 0)
     return size + (ALIGN_TO - (size % ALIGN_TO));
   else
     return size;
+}
+
+size_t
+mchunk_total_space(size_t size) {
+  return mchunk_aligned_size(size) + OVERHEAD;
 }
 
 void*
@@ -102,6 +166,24 @@ mchunk_set_footer(mchunkptr chunk, size_t size) {
   chunk->size = size;
   size_t *sizeRegion = mchunk_footer(chunk);
   *sizeRegion = chunk->size;
+}
+
+bool
+mchunk_should_split(mchunkptr ptr, size_t size) {
+  size_t remaining_size = ptr->size - mchunk_total_space(size);
+  // make sure remaining_size is < ptr->size because of unsigned int div
+  return remaining_size < ptr->size && remaining_size >= MIN_CHUNK_SIZE;
+}
+
+mchunkptr
+mchunk_split(mchunkptr ptr, size_t size) {
+  size_t remaining_size = ptr->size - mchunk_total_space(size);
+  assert(remaining_size < ptr->size);
+  mchunkptr split = (void *)ptr + mchunk_total_space(size);
+  split->size = ptr->size - mchunk_aligned_size(size) - OVERHEAD;
+  ptr->size = ptr->size - split->size;
+
+  return split;
 }
 
 void 
