@@ -9,7 +9,7 @@
 #include "jgmalloc.h"
 
 #define DEBUG 1
-#define ALLOCATE 409600
+#define ALLOCATE 2000000
 #define ALIGN_TO 16
 #define OVERHEAD (size_t) (sizeof(struct malloc_chunk) + sizeof(size_t))
 #define MIN_CHUNK_SIZE (size_t) OVERHEAD + ALIGN_TO
@@ -100,6 +100,7 @@ jgmalloc(size_t size) {
 }
 
 void free(void* ptr) {
+  free_list_append((mchunkptr)ptr-1);
 }
 
 
