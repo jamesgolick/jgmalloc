@@ -14,7 +14,7 @@ int main() {
   char *c = malloc(100 * sizeof(char));
   char *d = malloc(100 * sizeof(char));
 
-  c[0] = "a";
+  *c = 'a';
   printf("%p\n", c);
   printf("%p\n", d);
 
