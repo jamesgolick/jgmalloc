@@ -1,4 +1,4 @@
-CFLAGS = -flat_namespace -Wall -O0 -ggdb3
+CFLAGS = -flat_namespace -Wall -O0 -ggdb3 -Werror
 
 default: test run
 
