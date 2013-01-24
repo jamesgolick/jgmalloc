@@ -8,7 +8,6 @@
 #include "string.h"
 #include "pthread.h"
 #include "jgmalloc.h"
-#include <malloc/malloc.h>
 
 #define DEBUG 1
 #define ALLOCATE 2000000
@@ -24,6 +23,8 @@ mchunkptr freeListHead = NULL;
 mchunkptr freeListTail = NULL;
 
 heapptr heapListStart = NULL;
+
+bool heap_any_contains_ptr(const void *ptr);
 
 mchunkptr jgmalloc(size_t);
 size_t mchunk_total_space(size_t);
@@ -72,7 +73,9 @@ free_list_is_empty() {
 }
 
 void*
-jg_malloc(struct _malloc_zone_t *zone, size_t size) {
+malloc(size_t size) {
+  fprintf(stderr, "jgmalloc %lu\n", size);
+
   mchunkptr chunk = jgmalloc(size);
 
   assert(chunk->size >= size);
@@ -143,15 +146,19 @@ jgmalloc(size_t size) {
 }
 
 void
-jg_free(struct _malloc_zone_t *zone, void* ptr) {
-  fprintf(stderr, "jg_free\n");
-  mchunkptr chunk = (mchunkptr)ptr-1;
-  free_list_append(chunk);
+free(void* ptr) {
+  /*if (ptr == NULL) { return; }*/
+
+  /*if (heap_any_contains_ptr(ptr)) {*/
+  /*  fprintf(stderr, "jg_free\n");*/
+  /*  mchunkptr chunk = (mchunkptr)ptr-1;*/
+  /*  free_list_append(chunk);*/
+  /*}*/
 }
 
 
 void*
-jg_realloc(struct _malloc_zone_t *zone, void *oldptr, size_t size) {
+realloc(void *oldptr, size_t size) {
   void *newptr = malloc(size);
 
   if (oldptr != NULL) {
@@ -164,8 +171,8 @@ jg_realloc(struct _malloc_zone_t *zone, void *oldptr, size_t size) {
 }
 
 void*
-jg_calloc(struct _malloc_zone_t *zone, size_t count, size_t size) {
-  void *ptr = jg_malloc(zone, count * size);
+calloc(size_t count, size_t size) {
+  void *ptr = malloc(count * size);
 
   if (ptr != NULL)
     memset(ptr, 0, count * size);
@@ -264,60 +271,8 @@ heap_any_contains_ptr(const void *ptr) {
   return false;
 }
 
-size_t
-jg_size(struct _malloc_zone_t *zone, const void *ptr) {
-  if (heap_any_contains_ptr(ptr)) {
-    mchunkptr chunk = (mchunkptr)ptr - 1;
-    fprintf(stderr, "jg_size %lu\n", chunk->size);
-    return chunk->size;
-  } else {
-    return 0;
-  }
-}
-
-boolean_t
-jg_zone_locked() {
-  return false;
-}
-
 void *
-jg_valloc(size_t size) {
+valloc(size_t size) {
   fprintf(stderr, "valloc\n");
   return NULL;
-}
-
-// This is all snatched from tcmalloc
-static void __attribute__((constructor))
-jgmalloc_init(void) {
-  static malloc_zone_t jgmalloc_zone;
-  memset(&jgmalloc_zone, 0, sizeof(malloc_zone_t));
-
-  jgmalloc_zone.version = 4;
-  jgmalloc_zone.zone_name = "jgmalloc";
-  jgmalloc_zone.size = jg_size;
-  jgmalloc_zone.malloc = jg_malloc;
-  jgmalloc_zone.calloc = jg_calloc;
-  jgmalloc_zone.free = jg_free;
-  jgmalloc_zone.realloc = jg_realloc;
-  jgmalloc_zone.batch_malloc = NULL;
-  jgmalloc_zone.batch_free = NULL;
-
-  jgmalloc_zone.free_definite_size = NULL;
-  jgmalloc_zone.memalign = NULL;
-
-  malloc_default_purgeable_zone();
-
-  // Register the jgmalloc zone. At this point, it will not be the
-  // default zone.
-  malloc_zone_register(&jgmalloc_zone);
-
-  // Unregister and reregister the default zone.  Unregistering swaps
-  // the specified zone with the last one registered which for the
-  // default zone makes the more recently registered zone the default
-  // zone.  The default zone is then re-registered to ensure that
-  // allocations made from it earlier will be handled correctly.
-  // Things are not guaranteed to work that way, but it's how they work now.
-  malloc_zone_t *default_zone = malloc_default_zone();
-  malloc_zone_unregister(default_zone);
-  malloc_zone_register(default_zone);
 }
