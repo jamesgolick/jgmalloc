@@ -75,8 +75,6 @@ free_list_is_empty() {
 
 void*
 malloc(size_t size) {
-  fprintf(stderr, "jgmalloc %lu\n", size);
-
   mchunkptr chunk = jgmalloc(size);
 
   assert(chunk->size >= size);
@@ -151,7 +149,6 @@ free(void* ptr) {
   if (ptr == NULL) { return; }
 
   if (heap_any_contains_ptr(ptr)) {
-    fprintf(stderr, "jg_free\n");
     mchunkptr chunk = (mchunkptr)ptr-1;
     free_list_append(chunk);
   }
@@ -181,7 +178,6 @@ calloc(size_t count, size_t size) {
 }
 
 void *reallocf(void *ptr, size_t size) {
-  fprintf(stderr, "reallocf\n");
   return NULL;
 }
 
@@ -273,6 +269,5 @@ heap_any_contains_ptr(const void *ptr) {
 
 void *
 valloc(size_t size) {
-  fprintf(stderr, "valloc\n");
   return NULL;
 }
