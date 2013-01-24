@@ -166,7 +166,6 @@ realloc(void *oldptr, size_t size) {
     if (newptr != NULL)
       memcpy(newptr, oldptr, sizeof(oldptr));
   }
-  fprintf(stderr, "jg_realloc %p %p %lu\n", newptr, oldptr, size);
 
   return newptr;
 }
