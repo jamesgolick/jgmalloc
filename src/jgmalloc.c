@@ -7,6 +7,7 @@
 #include "assert.h"
 #include "string.h"
 #include "pthread.h"
+#include "malloc.h"
 #include "jgmalloc.h"
 
 #define DEBUG 1
@@ -147,13 +148,13 @@ jgmalloc(size_t size) {
 
 void
 free(void* ptr) {
-  /*if (ptr == NULL) { return; }*/
+  if (ptr == NULL) { return; }
 
-  /*if (heap_any_contains_ptr(ptr)) {*/
-  /*  fprintf(stderr, "jg_free\n");*/
-  /*  mchunkptr chunk = (mchunkptr)ptr-1;*/
-  /*  free_list_append(chunk);*/
-  /*}*/
+  if (heap_any_contains_ptr(ptr)) {
+    fprintf(stderr, "jg_free\n");
+    mchunkptr chunk = (mchunkptr)ptr-1;
+    free_list_append(chunk);
+  }
 }
 
 
