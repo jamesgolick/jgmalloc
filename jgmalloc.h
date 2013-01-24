@@ -9,6 +9,15 @@ struct malloc_chunk {
 };
 typedef struct malloc_chunk* mchunkptr;
 
+struct heap {
+  void *start;
+  void *end;
+
+  struct heap *next;
+  struct heap *prev;
+};
+typedef struct heap* heapptr;
+
 void print_malloc_stats();
 mchunkptr free_list_head();
 void allocate();

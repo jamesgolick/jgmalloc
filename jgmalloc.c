@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sys/mman.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include "errno.h"
 #include "unistd.h"
 #include "assert.h"
@@ -22,6 +23,8 @@ int totalBytesAllocated = 0;
 mchunkptr freeListHead = NULL;
 mchunkptr freeListTail = NULL;
 
+heapptr heapListStart = NULL;
+
 mchunkptr jgmalloc(size_t);
 size_t mchunk_total_space(size_t);
 size_t mchunk_aligned_size(size_t);
@@ -29,6 +32,39 @@ bool mchunk_should_split(mchunkptr, size_t);
 mchunkptr mchunk_split(mchunkptr, size_t);
 mchunkptr mchunk_chunk_right(mchunkptr);
 void mchunk_set_size(mchunkptr, size_t);
+
+heapptr heap_make(struct malloc_chunk **chunk) {
+  heapptr heap = (void*)*chunk;
+  *chunk = (void*)(heap + 1);
+  memcpy(*chunk, heap, sizeof(struct malloc_chunk));
+  mchunk_set_size(*chunk, (*chunk)->size - sizeof(struct heap));
+
+  heap->start = *chunk;
+  heap->end = (void*)*chunk + OVERHEAD + (*chunk)->size;
+
+  return heap;
+}
+
+void
+heap_list_append(struct malloc_chunk **chunk) {
+  if (heapListStart) {
+    heapptr cur = heapListStart;
+    do {
+      if (cur->end + 1 == (void*)*chunk) {
+	cur->end = (void*)*chunk + OVERHEAD + (*chunk)->size;
+	return;
+      }
+    } while((cur = cur->next) != NULL);
+
+    heapptr heap = heap_make(chunk);
+    cur = heapListStart;
+    while(cur->next != NULL) { cur = cur->next; }
+    cur->next = heap;
+    heap->prev = cur;
+  } else {
+    heapListStart = heap_make(chunk);
+  }
+}
 
 bool
 free_list_is_empty() {
@@ -108,22 +144,23 @@ jgmalloc(size_t size) {
 
 void
 jg_free(struct _malloc_zone_t *zone, void* ptr) {
+  fprintf(stderr, "jg_free\n");
   mchunkptr chunk = (mchunkptr)ptr-1;
   free_list_append(chunk);
 }
 
 
 void*
-jg_realloc(struct _malloc_zone_t *zone, void *ptr, size_t size) {
-  void *newPtr = jg_malloc(zone, size);
+jg_realloc(struct _malloc_zone_t *zone, void *oldptr, size_t size) {
+  void *newptr = malloc(size);
 
-  if (ptr != NULL) {
-    if (newPtr != NULL)
-      memcpy(newPtr, ptr, sizeof(ptr));
-    jg_free(zone, ptr);
+  if (oldptr != NULL) {
+    if (newptr != NULL)
+      memcpy(newptr, oldptr, sizeof(oldptr));
   }
+  fprintf(stderr, "jg_realloc %p %p %lu\n", newptr, oldptr, size);
 
-  return newPtr;
+  return newptr;
 }
 
 void*
@@ -137,6 +174,7 @@ jg_calloc(struct _malloc_zone_t *zone, size_t count, size_t size) {
 }
 
 void *reallocf(void *ptr, size_t size) {
+  fprintf(stderr, "reallocf\n");
   return NULL;
 }
 
@@ -145,6 +183,8 @@ void allocate() {
   memset(ptr, 0, sizeof(struct malloc_chunk));
 
   mchunk_set_size(ptr, ALLOCATE - OVERHEAD);
+
+  heap_list_append(&ptr);
 
   free_list_append(ptr);
 }
@@ -213,9 +253,26 @@ mchunk_chunk_right(mchunkptr ptr) {
   return (void*)ptr + OVERHEAD + ptr->size;
 }
 
+bool
+heap_any_contains_ptr(const void *ptr) {
+  heapptr cur = heapListStart;
+  do {
+    if (ptr > cur->start && ptr < cur->end)
+      return true;
+  } while((cur = cur->next) != NULL);
+
+  return false;
+}
+
 size_t
-jg_size() {
-  return 0;
+jg_size(struct _malloc_zone_t *zone, const void *ptr) {
+  if (heap_any_contains_ptr(ptr)) {
+    mchunkptr chunk = (mchunkptr)ptr - 1;
+    fprintf(stderr, "jg_size %lu\n", chunk->size);
+    return chunk->size;
+  } else {
+    return 0;
+  }
 }
 
 boolean_t
@@ -225,6 +282,7 @@ jg_zone_locked() {
 
 void *
 jg_valloc(size_t size) {
+  fprintf(stderr, "valloc\n");
   return NULL;
 }
 
@@ -234,7 +292,7 @@ jgmalloc_init(void) {
   static malloc_zone_t jgmalloc_zone;
   memset(&jgmalloc_zone, 0, sizeof(malloc_zone_t));
 
-  jgmalloc_zone.version = 6;
+  jgmalloc_zone.version = 4;
   jgmalloc_zone.zone_name = "jgmalloc";
   jgmalloc_zone.size = jg_size;
   jgmalloc_zone.malloc = jg_malloc;
